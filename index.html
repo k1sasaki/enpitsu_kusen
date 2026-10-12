@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>鉛筆空戦</title>
+<link rel="icon" href="favicon.ico?v=1">
+<link rel="apple-touch-icon" href="apple-touch-icon.png?v=1">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Yomogi&family=Kaisei+Decol:wght@500;700&display=swap">
+<style>
+  /*
+    layout: single scrolling column — ruled "notebook" canvas on top,
+    a desk-side panel (turn chip, record, log, controls) stacked underneath
+  */
+  :root{
+    --bg:#e7e0cb;
+    --paper:#fbf7ea;
+    --rule:#b9c7d8;
+    --margin:#d9918c;
+    --pencil:#46423a;
+    --player:#2f5fa8;
+    --enemy:#b5453c;
+    --accent:#c37d3a;
+    --fg:#3a352c;
+    --muted:#8d8573;
+    --card:#f1ead5;
+    --card-border:#d8cdab;
+    color-scheme:light;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --bg:#1b1916;
+      --paper:#28241f;
+      --rule:#3f4f6b;
+      --margin:#7c4440;
+      --pencil:#d9d2c2;
+      --player:#73a6ff;
+      --enemy:#ff8f85;
+      --accent:#e2a862;
+      --fg:#e7e0d2;
+      --muted:#9b9383;
+      --card:#231f1b;
+      --card-border:#3a352c;
+      color-scheme:dark;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#1b1916;
+    --paper:#28241f;
+    --rule:#3f4f6b;
+    --margin:#7c4440;
+    --pencil:#d9d2c2;
+    --player:#73a6ff;
+    --enemy:#ff8f85;
+    --accent:#e2a862;
+    --fg:#e7e0d2;
+    --muted:#9b9383;
+    --card:#231f1b;
+    --card-border:#3a352c;
+    color-scheme:dark;
+  }
+  *{box-sizing:border-box;}
+  body{background:var(--bg); color:var(--fg);}
+  .wrap{
+    max-width:760px;
+    margin:0 auto;
+    padding-inline:16px;
+    padding-block:28px 48px;
+    font-family:'Yomogi','Hiragino Maru Gothic ProN',sans-serif;
+  }
+  h1{
+    font-family:'Kaisei Decol',serif;
+    font-weight:700;
+    font-size:clamp(26px,6vw,34px);
+    margin:0 0 2px;
+    letter-spacing:.02em;
+  }
+  .sub{
+    margin:0 0 18px;
+    color:var(--muted);
+    font-size:14px;
+  }
+  .board-shell{
+    position:relative;
+    max-width:480px;
+    margin-inline:auto;
+    border-radius:10px;
+    overflow:hidden;
+    box-shadow:0 10px 26px -14px rgba(0,0,0,.45), 0 0 0 1px var(--card-border);
+    background:var(--paper);
+  }
+  canvas{
+    display:block;
+    width:100%;
+    height:auto;
+    aspect-ratio:620/860;
+    touch-action:none;
+    cursor:crosshair;
+  }
+  .result-banner{
+    position:absolute;
+    inset:0;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:14px;
+    background:rgba(20,18,14,.55);
+    backdrop-filter:blur(2px);
+    text-align:center;
+    padding:24px;
+  }
+  .result-banner[hidden]{display:none;}
+  .result-banner .msg{
+    font-family:'Kaisei Decol',serif;
+    font-weight:700;
+    font-size:clamp(28px,7vw,40px);
+    color:#fbf7ea;
+    text-shadow:0 2px 10px rgba(0,0,0,.5);
+  }
+  .result-banner .sub2{
+    color:#e7e0cb;
+    font-size:14px;
+  }
+  button.primary{
+    font-family:inherit;
+    font-size:15px;
+    border:none;
+    border-radius:999px;
+    padding:10px 24px;
+    background:var(--accent);
+    color:#2a1c0c;
+    font-weight:600;
+    cursor:pointer;
+  }
+  button.primary:active{transform:translateY(1px);}
+  button.ghost{
+    font-family:inherit;
+    font-size:12.5px;
+    border:1px solid var(--card-border);
+    background:transparent;
+    color:var(--muted);
+    border-radius:999px;
+    padding:5px 14px;
+    cursor:pointer;
+    white-space:nowrap;
+  }
+  button.ghost:active{transform:translateY(1px);}
+  .panel{
+    margin-top:16px;
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+  }
+  .row{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    flex-wrap:wrap;
+  }
+  .record-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+  }
+  .chip{
+    font-size:14px;
+    font-weight:600;
+    padding:7px 16px;
+    border-radius:999px;
+    white-space:nowrap;
+  }
+  .chip.turn-player{background:color-mix(in srgb, var(--player) 22%, transparent); color:var(--player);}
+  .chip.turn-enemy{background:color-mix(in srgb, var(--enemy) 22%, transparent); color:var(--enemy);}
+  .chip.turn-wait{background:color-mix(in srgb, var(--muted) 24%, transparent); color:var(--muted);}
+  .stat{
+    font-variant-numeric:tabular-nums;
+    font-family:'Kaisei Decol',serif;
+    font-size:14px;
+    color:var(--muted);
+  }
+  .stat b{color:var(--fg); font-size:16px;}
+  .card{
+    background:var(--card);
+    border:1px solid var(--card-border);
+    border-radius:10px;
+    padding:12px 16px;
+  }
+  .log{
+    list-style:none;
+    margin:0;
+    padding:0;
+    display:flex;
+    flex-direction:column;
+    gap:4px;
+    font-size:13.5px;
+    color:var(--fg);
+    min-height:84px;
+  }
+  .log li{opacity:.55;}
+  .log li:first-child{opacity:1; font-weight:600;}
+  details.card summary{
+    cursor:pointer;
+    font-weight:600;
+    list-style:none;
+  }
+  details.card summary::-webkit-details-marker{display:none;}
+  details.card summary::before{content:"▸ "; color:var(--accent);}
+  details.card[open] summary::before{content:"▾ "; color:var(--accent);}
+  details.card p{margin:10px 0 2px; font-size:13.5px; line-height:1.7; color:var(--fg);}
+  details.card b{color:var(--player);}
+  details.card .e{color:var(--enemy);}
+  footer{
+    margin-top:22px;
+    font-size:12px;
+    color:var(--muted);
+    text-align:center;
+  }
+</style>
+
+<div class="wrap">
+  <h1>鉛筆空戦</h1>
+  <p class="sub">教室の裏ワザ、鉛筆弾き戦闘機を画面で復活。3機編成・手前が自軍、向こうが敵軍</p>
+
+  <div class="board-shell">
+    <canvas id="board" width="620" height="860"></canvas>
+    <div class="result-banner" id="banner" hidden>
+      <div class="msg" id="bannerMsg"></div>
+      <div class="sub2" id="bannerSub"></div>
+      <button class="primary" id="restartBtn">次の一戦</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="row">
+      <span class="chip" id="turnChip">—</span>
+      <span class="stat">ターン <b id="turnCount">0</b></span>
+    </div>
+
+    <div class="card record-row">
+      <span class="stat">通算 <b id="recW">0</b>勝 <b id="recL">0</b>敗</span>
+      <button class="ghost" id="resetRecordBtn">リセット</button>
+    </div>
+
+    <div class="card">
+      <ul class="log" id="log"></ul>
+    </div>
+
+    <details class="card">
+      <summary>つかいかた</summary>
+      <p>自軍3機・敵3機が、海を挟んだ対岸の陣地から向かい合って出撃する。<b>自分の機体ならどれでも</b>、機首や両翼をドラッグしよう。</p>
+      <p><b>機首(前方の点)</b>をドラッグして離すと、線の先に新しい「士」が描かれてその機体が<b>移動</b>する。</p>
+      <p><b>両翼(左右の点)</b>をドラッグして離すと、その方向に線が飛ぶ。敵の「士」に重なれば<span class="e">1機撃墜</span>。</p>
+      <p>弾が確実に届くのは機首の向きから<b>左右5度ほど</b>まで。そこを過ぎると角度なりに急激に射程が縮み、20度も開けばほぼ届かない。点線のリングが、今の角度でどこまで届くかを示している。</p>
+      <p>引いた長さは方向を決めるだけ。実際の威力は<b>離す速さ</b>で決まる。パッと素早く離すほど線が長く伸びるが、速すぎると狂いが出てブレる。ゆっくり離すと短いが正確。</p>
+      <p>先に<b>3機とも撃墜された方</b>がその一戦の負け。通算成績はこの端末に記録され、何戦でも続けられる。</p>
+    </details>
+  </div>
+
+  <footer>鉛筆いらず・ノート汚れなし。昭和〜平成の授業中の発明に敬意を込めて。</footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var canvas = document.getElementById('board');
+  var ctx = canvas.getContext('2d');
+  var W = canvas.width, H = canvas.height;
+  var PAD = 46;
+
+  var MAX_RING = 130;
+  var MIN_DRAG = 12;
+  var GLYPH_SIZE = 62;
+  var HIT_R = 32;
+  var GRAB_R = 46;
+  var MIN_POWER = 30;
+  var POWER_SLOPE = 90;
+  var COMFORT_SPEED = 0.9;
+  var JITTER_K = 14;
+  var BASE_JITTER = 2;
+  var MAX_JITTER = 30;
+  var RECORD_KEY = 'enpitsu_kusen_record_v1';
+
+  function rand(a,b){ return a + Math.random()*(b-a); }
+  function clamp(v,a,b){ return Math.max(a, Math.min(b,v)); }
+  function dist(x1,y1,x2,y2){ return Math.hypot(x2-x1, y2-y1); }
+  function deg2rad(d){ return d*Math.PI/180; }
+  function angleDiff(a,b){
+    var d = Math.abs(a-b) % (Math.PI*2);
+    return d > Math.PI ? Math.PI*2 - d : d;
+  }
+  var CONE_TOL = deg2rad(5);
+  var CONE_EDGE = deg2rad(20);
+  function angleFactor(offRad){
+    if (offRad <= CONE_TOL) return 1;
+    if (offRad >= CONE_EDGE) return 0;
+    var t = (offRad-CONE_TOL)/(CONE_EDGE-CONE_TOL);
+    var f = 1-t;
+    return f*f;
+  }
+  function shootReach(offRad){
+    return MAX_RING * angleFactor(offRad);
+  }
+
+  function segPointDist(ax,ay,bx,by,px,py){
+    var abx=bx-ax, aby=by-ay;
+    var t = ((px-ax)*abx + (py-ay)*aby) / Math.max(1e-6, abx*abx+aby*aby);
+    t = clamp(t,0,1);
+    var cx = ax + abx*t, cy = ay + aby*t;
+    return dist(cx,cy,px,py);
+  }
+
+  function makePlane(side, x, y){
+    return { side:side, x:x, y:y, heading:-Math.PI/2, alive:true };
+  }
+  function handles(p){
+    var h = p.heading;
+    var fx = Math.cos(h), fy = Math.sin(h);
+    var rx = Math.cos(h+Math.PI/2), ry = Math.sin(h+Math.PI/2);
+    var noseLen = GLYPH_SIZE*0.46, wingSide = GLYPH_SIZE*0.40, wingFwd = GLYPH_SIZE*0.02;
+    return {
+      nose:  { x:p.x+fx*noseLen, y:p.y+fy*noseLen, type:'move' },
+      wingL: { x:p.x-rx*wingSide+fx*wingFwd, y:p.y-ry*wingSide+fy*wingFwd, type:'shoot' },
+      wingR: { x:p.x+rx*wingSide+fx*wingFwd, y:p.y+ry*wingSide+fy*wingFwd, type:'shoot' }
+    };
+  }
+  function aliveList(arr){
+    return arr.filter(function(p){ return p.alive; });
+  }
+
+  function loadRecord(){
+    try{
+      var raw = localStorage.getItem(RECORD_KEY);
+      if (raw){
+        var r = JSON.parse(raw);
+        if (typeof r.w === 'number' && typeof r.l === 'number') return r;
+      }
+    }catch(e){}
+    return { w:0, l:0 };
+  }
+  function saveRecord(r){
+    try{ localStorage.setItem(RECORD_KEY, JSON.stringify(r)); }catch(e){}
+  }
+  function renderRecord(){
+    var r = loadRecord();
+    document.getElementById('recW').textContent = r.w;
+    document.getElementById('recL').textContent = r.l;
+  }
+
+  var G = null;
+  var fx = [];
+  var drag = null;
+  var fontReady = false;
+  var actionPending = false;
+
+  function newGame(){
+    var xs = [0.25,0.5,0.75].map(function(f){ return W*f; });
+    G = {
+      player: xs.map(function(x){ return makePlane('player', x, H-PAD-30); }),
+      enemy:  xs.map(function(x){ return makePlane('enemy',  x, PAD+30); }),
+      turn: 'player',
+      turnCount: 1,
+      over: false,
+      log: []
+    };
+    G.player.forEach(function(p){ p.heading = -Math.PI/2; });
+    G.enemy.forEach(function(p){ p.heading = Math.PI/2; });
+    fx = [];
+    drag = null;
+    document.getElementById('banner').hidden = true;
+    pushLog('あなたの番。自分の機体の機首か両翼をドラッグしよう。');
+    syncUI();
+    snapshot();
+  }
+
+  function pushLog(msg){
+    G.log.unshift(msg);
+    if (G.log.length > 6) G.log.length = 6;
+    var ul = document.getElementById('log');
+    ul.innerHTML = '';
+    G.log.forEach(function(m){
+      var li = document.createElement('li');
+      li.textContent = m;
+      ul.appendChild(li);
+    });
+  }
+
+  function syncUI(){
+    var chip = document.getElementById('turnChip');
+    document.getElementById('turnCount').textContent = G.turnCount;
+    if (G.over){
+      chip.className = 'chip turn-wait';
+      chip.textContent = '対局終了';
+    } else if (G.turn === 'player'){
+      chip.className = 'chip turn-player';
+      chip.textContent = 'あなたの番です';
+    } else {
+      chip.className = 'chip turn-enemy';
+      chip.textContent = '敵の番・考え中…';
+    }
+  }
+
+  function snapshot(){
+    try{
+      window.claude && window.claude.hot && window.claude.hot.snapshot && window.claude.hot.snapshot(G);
+    }catch(e){}
+  }
+
+  function clampToBoard(p){
+    p.x = clamp(p.x, PAD+30, W-PAD-30);
+    p.y = clamp(p.y, PAD+30, H-PAD-30);
+  }
+
+  function resolveFlick(side, plane, origin, type, endPoint){
+    actionPending = true;
+    var now = performance.now();
+    fx.push({ kind:'line', side:side, a:origin, b:endPoint, start:now, dur:150 });
+
+    var foes = side === 'player' ? G.enemy : G.player;
+
+    if (type === 'move'){
+      var dx = endPoint.x - origin.x, dy = endPoint.y - origin.y;
+      plane.heading = Math.atan2(dy,dx);
+      plane.x += dx; plane.y += dy;
+      var before = {x:plane.x, y:plane.y};
+      clampToBoard(plane);
+      var clipped = (before.x !== plane.x || before.y !== plane.y);
+      setTimeout(function(){
+        pushLog((side==='player'?'あなた':'敵') + 'の機体が移動した。' + (clipped ? '(紙のはみ出し寸前で止まった)' : ''));
+        actionPending = false;
+        afterAction();
+      }, 170);
+    } else {
+      var shotAngle = Math.atan2(endPoint.y-origin.y, endPoint.x-origin.x);
+      var offDeg = angleDiff(shotAngle, plane.heading) * 180/Math.PI;
+      var effHitR = Math.max(3, HIT_R * angleFactor(angleDiff(shotAngle, plane.heading)));
+      var best = null, bestMargin = -Infinity;
+      foes.forEach(function(f){
+        if (!f.alive) return;
+        var m = effHitR - segPointDist(origin.x,origin.y,endPoint.x,endPoint.y, f.x,f.y);
+        if (m > bestMargin){ bestMargin = m; best = f; }
+      });
+      var hit = !!best && bestMargin >= 0;
+      var tag = '(角度ズレ' + Math.round(offDeg) + '°・命中半径' + Math.round(effHitR) + 'px・余裕' + Math.round(bestMargin) + 'px)';
+      setTimeout(function(){
+        actionPending = false;
+        if (hit){
+          best.alive = false;
+          fx.push({ kind:'burst', x:best.x, y:best.y, side:side, start:performance.now(), dur:520 });
+          var remain = aliveList(foes).length;
+          if (remain === 0){
+            pushLog((side==='player'?'あなた':'敵') + 'の一撃が命中!これで全機撃墜。' + tag);
+            finishGame(side);
+          } else {
+            pushLog((side==='player'?'あなた':'敵') + 'の一撃が命中!残り' + remain + '機。' + tag);
+            afterAction();
+          }
+        } else {
+          pushLog((side==='player'?'あなた':'敵') + 'が射撃…外れた。' + tag);
+          afterAction();
+        }
+      }, 170);
+    }
+  }
+
+  function afterAction(){
+    if (G.over) return;
+    G.turnCount++;
+    G.turn = (G.turn === 'player') ? 'enemy' : 'player';
+    syncUI();
+    snapshot();
+    if (G.turn === 'enemy'){
+      setTimeout(aiTurn, rand(650,1100));
+    }
+  }
+
+  function finishGame(winnerSide){
+    G.over = true;
+    syncUI();
+    var rec = loadRecord();
+    if (winnerSide === 'player') rec.w++; else rec.l++;
+    saveRecord(rec);
+    renderRecord();
+    snapshot();
+    var banner = document.getElementById('banner');
+    var msg = document.getElementById('bannerMsg');
+    var sub = document.getElementById('bannerSub');
+    if (winnerSide === 'player'){
+      msg.textContent = '撃墜! あなたの勝ち';
+      sub.textContent = '敵機を全機撃墜した。';
+    } else {
+      msg.textContent = 'やられた… あなたの敗け';
+      sub.textContent = '自軍が全機撃墜されてしまった。';
+    }
+    setTimeout(function(){ banner.hidden = false; }, 500);
+  }
+
+  function aiTurn(){
+    if (G.over || G.turn !== 'enemy' || actionPending) return;
+    var aiAlive = aliveList(G.enemy), plAlive = aliveList(G.player);
+    if (!aiAlive.length || !plAlive.length) return;
+
+    var candidates = aiAlive.map(function(ai){
+      var target = null, bestD = Infinity;
+      plAlive.forEach(function(pl){
+        var dd = dist(ai.x,ai.y,pl.x,pl.y);
+        if (dd < bestD){ bestD = dd; target = pl; }
+      });
+      var angleToTarget = Math.atan2(target.y-ai.y, target.x-ai.x);
+      var facingOff = angleDiff(angleToTarget, ai.heading);
+      var reach = shootReach(facingOff);
+      return { ai:ai, target:target, d:bestD, facingOff:facingOff, reach:reach, canReach: reach >= bestD*0.92 };
+    });
+
+    var shooters = candidates.filter(function(c){ return c.canReach; }).sort(function(a,b){ return a.d - b.d; });
+
+    if (shooters.length){
+      var c = shooters[0];
+      var hs = handles(c.ai);
+      var origin = (c.target.x < c.ai.x) ? hs.wingL : hs.wingR;
+      var errorDeg = 1.5 + (c.d/Math.max(1,c.reach))*3.5;
+      var angle = c.ai.heading + (Math.random()<0.5?-1:1)*rand(0,errorDeg)*Math.PI/180;
+      var cap = shootReach(angleDiff(angle, c.ai.heading));
+      var power = clamp(rand(c.d*0.9, c.d*1.08), Math.min(20,cap), cap);
+      var end = { x: origin.x + Math.cos(angle)*power, y: origin.y + Math.sin(angle)*power };
+      resolveFlick('enemy', c.ai, origin, 'shoot', end);
+    } else {
+      candidates.sort(function(a,b){ return a.d - b.d; });
+      var c2 = candidates[0];
+      var hs2 = handles(c2.ai);
+      var origin2 = hs2.nose;
+      var nearD = MAX_RING*1.5, farD = MAX_RING*4;
+      var wT = clamp((c2.d-nearD)/(farD-nearD), 0, 1);
+      var wander2 = 3 + wT*(16-3);
+      var baseAngle2 = Math.atan2(c2.target.y-c2.ai.y, c2.target.x-c2.ai.x) + (Math.random()<0.5?-1:1)*rand(0,wander2)*Math.PI/180;
+      var power2 = rand(MAX_RING*0.4, MAX_RING*0.95);
+      var end2 = { x: origin2.x + Math.cos(baseAngle2)*power2, y: origin2.y + Math.sin(baseAngle2)*power2 };
+      resolveFlick('enemy', c2.ai, origin2, 'move', end2);
+    }
+  }
+
+  function canvasPoint(evt){
+    var r = canvas.getBoundingClientRect();
+    var sx = W / r.width, sy = H / r.height;
+    return { x:(evt.clientX-r.left)*sx, y:(evt.clientY-r.top)*sy };
+  }
+
+  function onDown(evt){
+    if (G.over || G.turn !== 'player' || actionPending) return;
+    var p = canvasPoint(evt);
+    var best = null, bestD = Infinity, bestPlane = null;
+    G.player.forEach(function(plane){
+      if (!plane.alive) return;
+      var hs = handles(plane);
+      ['nose','wingL','wingR'].forEach(function(k){
+        var h = hs[k];
+        var dd = dist(p.x,p.y,h.x,h.y);
+        if (dd < GRAB_R && dd < bestD){ bestD = dd; best = h; bestPlane = plane; }
+      });
+    });
+    if (!best) return;
+    canvas.setPointerCapture(evt.pointerId);
+    drag = { plane:bestPlane, origin:{x:best.x,y:best.y}, type:best.type, cur:p, t0:performance.now() };
+    evt.preventDefault();
+  }
+  function onMove(evt){
+    if (!drag) return;
+    drag.cur = canvasPoint(evt);
+    evt.preventDefault();
+  }
+  function onUp(evt){
+    if (!drag) return;
+    var d = drag;
+    drag = null;
+    var raw = dist(d.origin.x,d.origin.y,d.cur.x,d.cur.y);
+    if (raw < MIN_DRAG) return;
+
+    var dt = Math.max(16, performance.now() - d.t0);
+    var speed = raw / dt;
+    var baseAngle = Math.atan2(d.cur.y-d.origin.y, d.cur.x-d.origin.x);
+    var cap = (d.type === 'shoot') ? shootReach(angleDiff(baseAngle, d.plane.heading)) : MAX_RING;
+    var power = clamp(MIN_POWER + speed*POWER_SLOPE, Math.min(MIN_POWER,cap), cap);
+    var jitterDeg = BASE_JITTER + Math.max(0, speed-COMFORT_SPEED)*JITTER_K;
+    jitterDeg = clamp(jitterDeg, 0, MAX_JITTER);
+    var angle = baseAngle + (Math.random()<0.5?-1:1)*rand(0,jitterDeg)*Math.PI/180;
+    var end = { x: d.origin.x + Math.cos(angle)*power, y: d.origin.y + Math.sin(angle)*power };
+    resolveFlick('player', d.plane, d.origin, d.type, end);
+  }
+
+  canvas.addEventListener('pointerdown', onDown);
+  canvas.addEventListener('pointermove', onMove);
+  canvas.addEventListener('pointerup', onUp);
+  canvas.addEventListener('pointercancel', function(){ drag = null; });
+  canvas.oncontextmenu = function(){ return false; };
+
+  function drawRuledPaper(){
+    var cs = getComputedStyle(document.documentElement);
+    ctx.fillStyle = cs.getPropertyValue('--paper');
+    ctx.fillRect(0,0,W,H);
+    ctx.strokeStyle = cs.getPropertyValue('--rule');
+    ctx.lineWidth = 1;
+    for (var y=36; y<H; y+=36){
+      ctx.beginPath(); ctx.moveTo(0,y+.5); ctx.lineTo(W,y+.5); ctx.stroke();
+    }
+    ctx.strokeStyle = cs.getPropertyValue('--margin');
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(64,0); ctx.lineTo(64,H); ctx.stroke();
+    return cs;
+  }
+
+  function genCoast(baseY){
+    var amp1 = rand(8,14), amp2 = rand(4,8);
+    var f1 = rand(0.015,0.025), f2 = rand(0.035,0.05);
+    var p1 = rand(0,Math.PI*2), p2 = rand(0,Math.PI*2);
+    var pts = [];
+    for (var x=-10; x<=W+10; x+=14){
+      pts.push({ x:x, y: baseY + Math.sin(x*f1+p1)*amp1 + Math.sin(x*f2+p2)*amp2 });
+    }
+    return pts;
+  }
+  var topCoast = genCoast(PAD+30+16);
+  var bottomCoast = genCoast(H-PAD-30-16);
+
+  function drawCoast(pts, tickDir, color){
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.globalAlpha = 0.55;
+    ctx.lineWidth = 1.6;
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    pts.forEach(function(p,i){ if (i===0) ctx.moveTo(p.x,p.y); else ctx.lineTo(p.x,p.y); });
+    ctx.stroke();
+    ctx.lineWidth = 1;
+    ctx.globalAlpha = 0.45;
+    for (var i=0; i<pts.length; i+=2){
+      var p = pts[i];
+      var tl = 4 + (i % 5);
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+      ctx.lineTo(p.x + ((i*53)%7-3), p.y + tickDir*tl);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawPlane(p, color){
+    if (!p.alive) return;
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.rotate(p.heading + Math.PI/2);
+    ctx.fillStyle = color;
+    ctx.font = GLYPH_SIZE + "px 'Yomogi', sans-serif";
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('士', 0, 4);
+    ctx.restore();
+  }
+
+  function drawHandles(p, color){
+    if (!p.alive) return;
+    var hs = handles(p);
+    ctx.save();
+    ctx.fillStyle = color;
+    ctx.globalAlpha = 0.55;
+    [hs.nose, hs.wingL, hs.wingR].forEach(function(h){
+      ctx.beginPath(); ctx.arc(h.x,h.y,4.5,0,Math.PI*2); ctx.fill();
+    });
+    ctx.restore();
+  }
+
+  function draw(){
+    var cs = drawRuledPaper();
+    var playerColor = cs.getPropertyValue('--player');
+    var enemyColor = cs.getPropertyValue('--enemy');
+    var pencil = cs.getPropertyValue('--pencil');
+
+    drawCoast(topCoast, -1, pencil);
+    drawCoast(bottomCoast, 1, pencil);
+
+    if (!G.over && G.turn === 'player'){
+      G.player.forEach(function(p){ if (p.alive) drawHandles(p, playerColor); });
+    }
+
+    if (fontReady){
+      G.player.forEach(function(p){ drawPlane(p, playerColor); });
+      G.enemy.forEach(function(p){ drawPlane(p, enemyColor); });
+    }
+
+    var now = performance.now();
+    fx = fx.filter(function(f){ return now - f.start < f.dur; });
+    fx.forEach(function(f){
+      var t = clamp((now-f.start)/f.dur, 0, 1);
+      if (f.kind === 'line'){
+        var color = f.side==='player' ? playerColor : enemyColor;
+        var ex = f.a.x + (f.b.x-f.a.x)*Math.min(1, t*1.4);
+        var ey = f.a.y + (f.b.y-f.a.y)*Math.min(1, t*1.4);
+        ctx.save();
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2.4;
+        ctx.lineCap = 'round';
+        ctx.globalAlpha = 1 - t*0.3;
+        ctx.beginPath(); ctx.moveTo(f.a.x,f.a.y); ctx.lineTo(ex,ey); ctx.stroke();
+        ctx.restore();
+      } else if (f.kind === 'burst'){
+        var c2 = f.side==='player' ? playerColor : enemyColor;
+        ctx.save();
+        ctx.strokeStyle = c2;
+        ctx.globalAlpha = 1-t;
+        ctx.lineWidth = 3;
+        var n=10;
+        for (var i=0;i<n;i++){
+          var a = (i/n)*Math.PI*2;
+          var len = 10 + t*26;
+          ctx.beginPath();
+          ctx.moveTo(f.x + Math.cos(a)*8, f.y + Math.sin(a)*8);
+          ctx.lineTo(f.x + Math.cos(a)*len, f.y + Math.sin(a)*len);
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+    });
+
+    if (drag){
+      var ang = Math.atan2(drag.cur.y-drag.origin.y, drag.cur.x-drag.origin.x);
+      var liveCap = (drag.type === 'shoot') ? shootReach(angleDiff(ang, drag.plane.heading)) : MAX_RING;
+      ctx.save();
+      ctx.strokeStyle = pencil;
+      if (drag.type === 'shoot'){
+        ctx.globalAlpha = 0.1;
+        ctx.setLineDash([5,5]);
+        ctx.beginPath(); ctx.arc(drag.origin.x, drag.origin.y, MAX_RING, 0, Math.PI*2); ctx.stroke();
+      }
+      ctx.globalAlpha = 0.35;
+      ctx.setLineDash([5,5]);
+      ctx.beginPath(); ctx.arc(drag.origin.x, drag.origin.y, liveCap, 0, Math.PI*2); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.globalAlpha = 1;
+      var rawD = dist(drag.origin.x,drag.origin.y,drag.cur.x,drag.cur.y);
+      var clip = Math.min(rawD, liveCap);
+      var px = drag.origin.x + Math.cos(ang)*clip, py = drag.origin.y + Math.sin(ang)*clip;
+      ctx.strokeStyle = playerColor;
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(drag.origin.x,drag.origin.y); ctx.lineTo(px,py); ctx.stroke();
+      ctx.restore();
+    }
+
+    requestAnimationFrame(draw);
+  }
+
+  document.getElementById('restartBtn').addEventListener('click', newGame);
+
+  (function(){
+    var resetArmed = false, resetTimer = null;
+    var btn = document.getElementById('resetRecordBtn');
+    btn.addEventListener('click', function(){
+      if (!resetArmed){
+        resetArmed = true;
+        btn.textContent = 'もう一度押すと消えます';
+        resetTimer = setTimeout(function(){ resetArmed = false; btn.textContent = 'リセット'; }, 3000);
+      } else {
+        clearTimeout(resetTimer);
+        resetArmed = false;
+        btn.textContent = 'リセット';
+        saveRecord({ w:0, l:0 });
+        renderRecord();
+      }
+    });
+  })();
+
+  function boot(data){
+    if (data && Array.isArray(data.player) && Array.isArray(data.enemy)){
+      G = data;
+      fx = [];
+      drag = null;
+      document.getElementById('banner').hidden = !G.over;
+      if (G.over){
+        var winner = aliveList(G.player).length === 0 ? 'enemy' : 'player';
+        document.getElementById('bannerMsg').textContent = winner==='player' ? '撃墜! あなたの勝ち' : 'やられた… あなたの敗け';
+        document.getElementById('bannerSub').textContent = winner==='player' ? '敵機を全機撃墜した。' : '自軍が全機撃墜されてしまった。';
+      }
+      var ul = document.getElementById('log'); ul.innerHTML = '';
+      (G.log||[]).forEach(function(m){ var li=document.createElement('li'); li.textContent=m; ul.appendChild(li); });
+      syncUI();
+      if (!G.over && G.turn === 'enemy') setTimeout(aiTurn, 700);
+    } else {
+      newGame();
+    }
+    renderRecord();
+    document.fonts.ready.then(function(){ fontReady = true; });
+    requestAnimationFrame(draw);
+  }
+
+  if (window.claude && window.claude.hot && window.claude.hot.ready){
+    window.claude.hot.ready(boot);
+  } else {
+    boot((window.claude && window.claude.hot && window.claude.hot.data) || null);
+  }
+})();
+</script>
