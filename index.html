@@ -195,10 +195,12 @@
     gap:4px;
     font-size:13.5px;
     color:var(--fg);
-    min-height:84px;
+    height:140px;
+    overflow-y:auto;
+    scroll-behavior:smooth;
   }
-  .log li{opacity:.55;}
-  .log li:first-child{opacity:1; font-weight:600;}
+  .log li{opacity:.55; flex:0 0 auto;}
+  .log li:last-child{opacity:1; font-weight:600;}
   details.card summary{
     cursor:pointer;
     font-weight:600;
@@ -374,8 +376,8 @@
   }
 
   function pushLog(msg){
-    G.log.unshift(msg);
-    if (G.log.length > 6) G.log.length = 6;
+    G.log.push(msg);
+    if (G.log.length > 200) G.log.shift();
     var ul = document.getElementById('log');
     ul.innerHTML = '';
     G.log.forEach(function(m){
@@ -383,6 +385,7 @@
       li.textContent = m;
       ul.appendChild(li);
     });
+    ul.scrollTop = ul.scrollHeight;
   }
 
   function syncUI(){
@@ -780,6 +783,7 @@
       }
       var ul = document.getElementById('log'); ul.innerHTML = '';
       (G.log||[]).forEach(function(m){ var li=document.createElement('li'); li.textContent=m; ul.appendChild(li); });
+      ul.scrollTop = ul.scrollHeight;
       syncUI();
       if (!G.over && G.turn === 'enemy') setTimeout(aiTurn, 700);
     } else {
